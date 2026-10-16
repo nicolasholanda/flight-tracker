@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flight-tracker"
+version = "0.1.0"
+description = "Telegram bot that watches Google Flights prices and alerts when they drop below a target"
+requires-python = ">=3.13"
+dependencies = [
+    "fast-flights==3.1.0",
+    "typing_extensions>=4.12",
+    "python-telegram-bot[job-queue]==22.8",
+    "pydantic-settings==2.16.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+flight_tracker = ["migrations/*.sql", "data/*.csv"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = ["live: hits the real Google Flights (opt-in with RUN_LIVE=1)"]
