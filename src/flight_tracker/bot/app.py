@@ -6,16 +6,18 @@ from telegram.warnings import PTBUserWarning
 
 from flight_tracker.bot.access import guard, on_access_decision, start
 from flight_tracker.bot.admin import on_revoke, revoke_command, users_command
-from flight_tracker.bot.search import search_conversation
+from flight_tracker.bot.search import alert_conversation, search_conversation
 from flight_tracker.config import Settings
 from flight_tracker.db import connect, migrate
 from flight_tracker.providers.google_flights import GoogleFlightsProvider
 from flight_tracker.repositories.search_request_repository import SearchRequestRepository
 from flight_tracker.repositories.user_repository import UserRepository
+from flight_tracker.repositories.watch_repository import WatchRepository
 from flight_tracker.services.access_service import AccessService
 from flight_tracker.services.city_resolver import CityResolver
 from flight_tracker.services.quota_service import QuotaService
 from flight_tracker.services.search_service import SearchService
+from flight_tracker.services.watch_service import WatchService
 
 warnings.filterwarnings("ignore", message=r".*per_message.*", category=PTBUserWarning)
 
@@ -27,6 +29,13 @@ def build_application(settings: Settings) -> Application:
     access = AccessService(UserRepository(conn), settings.owner_chat_id)
     access.ensure_owner()
     provider = GoogleFlightsProvider(settings.currency, settings.language)
+    watch_repository = WatchRepository(conn)
+    quota = QuotaService(
+        SearchRequestRepository(conn),
+        watch_repository,
+        settings.max_searches_per_user_per_hour,
+        settings.max_active_watches_per_user,
+    )
 
     app = ApplicationBuilder().token(settings.telegram_token).build()
     app.bot_data.update(
@@ -35,7 +44,8 @@ def build_application(settings: Settings) -> Application:
         access=access,
         city_resolver=CityResolver.from_csv(),
         search=SearchService(provider, settings.request_delay_seconds),
-        quota=QuotaService(SearchRequestRepository(conn), settings.max_searches_per_user_per_hour),
+        quota=quota,
+        watches=WatchService(watch_repository, quota),
     )
 
     app.add_handler(TypeHandler(Update, guard), group=-1)
@@ -45,4 +55,5 @@ def build_application(settings: Settings) -> Application:
     app.add_handler(CommandHandler("revoke", revoke_command))
     app.add_handler(CallbackQueryHandler(on_revoke, pattern=r"^admin:revoke:"))
     app.add_handler(search_conversation())
+    app.add_handler(alert_conversation())
     return app

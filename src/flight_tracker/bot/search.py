@@ -12,12 +12,13 @@ from telegram.ext import (
     filters,
 )
 
-from flight_tracker.bot.formatting import format_results, main_menu, parse_date
+from flight_tracker.bot.formatting import format_results, format_watch, main_menu, parse_date, parse_price
 from flight_tracker.domain import TripType
 from flight_tracker.providers.base import ProviderError
 from flight_tracker.services.city_resolver import CityOption, CityResolver
+from flight_tracker.services.watch_service import WatchLimitReached
 
-TRIP, ORIGIN, DESTINATION, DEPARTURE, RETURN = range(5)
+TRIP, ORIGIN, DESTINATION, DEPARTURE, RETURN, TARGET_PRICE = range(6)
 
 
 def _today(context: ContextTypes.DEFAULT_TYPE) -> date:
@@ -173,15 +174,70 @@ async def _run_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         text,
         parse_mode=ParseMode.HTML,
         link_preview_options=LinkPreviewOptions(is_disabled=True),
+        reply_markup=_results_keyboard(),
+    )
+    return ConversationHandler.END
+
+
+def _results_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("🔔 Criar alerta de preço", callback_data="alert:create")]]
+        + list(main_menu().inline_keyboard)
+    )
+
+
+async def start_alert(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    await update.callback_query.answer()
+    if "last_search" not in context.user_data:
+        await update.effective_chat.send_message("Faça uma busca primeiro. 🔍", reply_markup=main_menu())
+        return ConversationHandler.END
+    quota = context.bot_data["quota"]
+    if not quota.can_create_watch(update.effective_user.id):
+        await update.effective_chat.send_message(_limit_text(quota.max_active_watches))
+        return ConversationHandler.END
+    await update.effective_chat.send_message(
+        "Qual o preço máximo que você quer pagar? (por exemplo: 1500)\n"
+        "Te aviso quando aparecer um voo por esse valor ou menos. 🔔"
+    )
+    return TARGET_PRICE
+
+
+async def on_target_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    target_price = parse_price(update.message.text)
+    if target_price is None:
+        await update.message.reply_text("Valor inválido. Digite só o número (por exemplo: 1500 ou 1.499,90).")
+        return TARGET_PRICE
+    search = context.user_data["last_search"]
+    try:
+        watch = context.bot_data["watches"].create(
+            update.effective_user.id,
+            search["trip_type"],
+            search["origin"],
+            search["destination"],
+            search["departure_date"],
+            search["return_date"],
+            target_price,
+        )
+    except WatchLimitReached:
+        await update.message.reply_text(_limit_text(context.bot_data["quota"].max_active_watches))
+        return ConversationHandler.END
+    await update.message.reply_text(
+        f"🔔 Alerta criado!\n\n{format_watch(watch)}\n\n"
+        "Vou verificar os preços a cada hora e te aviso quando bater o valor. ✈️",
+        parse_mode=ParseMode.HTML,
         reply_markup=main_menu(),
     )
     return ConversationHandler.END
 
 
+def _limit_text(limit: int) -> str:
+    return f"Você atingiu o limite de {limit} alertas ativos. Remova algum para criar outro."
+
+
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.pop("draft", None)
     context.user_data.pop("city_options", None)
-    await update.message.reply_text("Busca cancelada.", reply_markup=main_menu())
+    await update.message.reply_text("Cancelado.", reply_markup=main_menu())
     return ConversationHandler.END
 
 
@@ -202,6 +258,16 @@ def search_conversation() -> ConversationHandler:
             DEPARTURE: [MessageHandler(text, on_departure)],
             RETURN: [MessageHandler(text, on_return)],
         },
+        fallbacks=[CommandHandler("cancelar", cancel)],
+        allow_reentry=True,
+        conversation_timeout=900,
+    )
+
+
+def alert_conversation() -> ConversationHandler:
+    return ConversationHandler(
+        entry_points=[CallbackQueryHandler(start_alert, pattern=r"^alert:create$")],
+        states={TARGET_PRICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, on_target_price)]},
         fallbacks=[CommandHandler("cancelar", cancel)],
         allow_reentry=True,
         conversation_timeout=900,

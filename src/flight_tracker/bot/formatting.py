@@ -1,15 +1,16 @@
 import re
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from html import escape
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from flight_tracker.domain import FlightOffer
+from flight_tracker.domain import FlightOffer, Watch
 
 WEEKDAYS = ["seg.", "ter.", "qua.", "qui.", "sex.", "sáb.", "dom."]
 DATE_PATTERN = re.compile(r"^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2}|\d{4}))?$")
 ISO_PATTERN = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
+PRICE_PATTERN = re.compile(r"^\d[\d.,]*$")
 
 
 def main_menu() -> InlineKeyboardMarkup:
@@ -68,6 +69,33 @@ def format_results(
         return f"{header}\n\nNenhum voo encontrado para essa data. 😕"
     body = "\n\n".join(format_offer(offer) for offer in offers[:limit])
     return f"{header}\n\n{body}"
+
+
+def format_watch(watch: Watch) -> str:
+    dates = format_date(watch.departure_date)
+    if watch.return_date is not None:
+        dates = f"{dates} ⇄ {format_date(watch.return_date)}"
+    return (
+        f"📍 <b>{escape(watch.origin_label)} → {escape(watch.destination_label)}</b>\n"
+        f"📅 {dates}\n"
+        f"🎯 Até <b>{format_price(watch.target_price)}</b>"
+        + (" (ida e volta)" if watch.return_date is not None else "")
+    )
+
+
+def parse_price(text: str) -> Decimal | None:
+    value = text.strip().upper().removeprefix("R$").strip().replace(" ", "")
+    if not PRICE_PATTERN.match(value):
+        return None
+    if "," in value:
+        value = value.replace(".", "").replace(",", ".")
+    elif value.count(".") > 1 or (value.count(".") == 1 and len(value.rsplit(".", 1)[1]) == 3):
+        value = value.replace(".", "")
+    try:
+        price = Decimal(value)
+    except InvalidOperation:
+        return None
+    return price if price > 0 else None
 
 
 def parse_date(text: str, today: date) -> date | None:
