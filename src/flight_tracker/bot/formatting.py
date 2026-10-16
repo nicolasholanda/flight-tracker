@@ -88,6 +88,10 @@ def format_watch(watch: Watch) -> str:
     )
 
 
+def format_alert(watch: Watch, offer: FlightOffer) -> str:
+    return f"🔔 <b>Preço no alvo!</b>\n\n{format_watch(watch)}\n\n{format_offer(offer)}"
+
+
 def parse_price(text: str) -> Decimal | None:
     value = text.strip().upper().removeprefix("R$").strip().replace(" ", "")
     if not PRICE_PATTERN.match(value):

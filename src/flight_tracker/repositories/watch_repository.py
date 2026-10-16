@@ -3,7 +3,7 @@ from dataclasses import replace
 from datetime import date, datetime
 from decimal import Decimal
 
-from flight_tracker.domain import TripType, Watch, WatchStatus
+from flight_tracker.domain import TripType, UserStatus, Watch, WatchStatus
 
 
 class WatchRepository:
@@ -52,6 +52,27 @@ class WatchRepository:
 
     def update_status(self, watch_id: int, status: WatchStatus) -> None:
         self._conn.execute("UPDATE watch SET status = ? WHERE id = ?", (status, watch_id))
+
+    def expire_before(self, today: date) -> int:
+        cursor = self._conn.execute(
+            "UPDATE watch SET status = ? WHERE status = ? AND departure_date < ?",
+            (WatchStatus.EXPIRED, WatchStatus.ACTIVE, today.isoformat()),
+        )
+        return cursor.rowcount
+
+    def find_checkable(self) -> list[Watch]:
+        rows = self._conn.execute(
+            "SELECT watch.* FROM watch JOIN app_user ON app_user.chat_id = watch.chat_id "
+            "WHERE watch.status = ? AND app_user.status = ? ORDER BY watch.id",
+            (WatchStatus.ACTIVE, UserStatus.APPROVED),
+        ).fetchall()
+        return [_to_watch(row) for row in rows]
+
+    def update_last_notified(self, watch_id: int, price: Decimal | None) -> None:
+        self._conn.execute(
+            "UPDATE watch SET last_notified_price = ? WHERE id = ?",
+            (str(price) if price is not None else None, watch_id),
+        )
 
 
 def _to_watch(row: sqlite3.Row) -> Watch:
