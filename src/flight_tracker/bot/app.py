@@ -7,6 +7,7 @@ from telegram.warnings import PTBUserWarning
 from flight_tracker.bot.access import guard, on_access_decision, start
 from flight_tracker.bot.admin import on_revoke, revoke_command, users_command
 from flight_tracker.bot.search import alert_conversation, search_conversation
+from flight_tracker.bot.watches import list_alerts, on_remove
 from flight_tracker.config import Settings
 from flight_tracker.db import connect, migrate
 from flight_tracker.providers.google_flights import GoogleFlightsProvider
@@ -56,4 +57,7 @@ def build_application(settings: Settings) -> Application:
     app.add_handler(CallbackQueryHandler(on_revoke, pattern=r"^admin:revoke:"))
     app.add_handler(search_conversation())
     app.add_handler(alert_conversation())
+    app.add_handler(CommandHandler("alertas", list_alerts))
+    app.add_handler(CallbackQueryHandler(list_alerts, pattern=r"^menu:alerts$"))
+    app.add_handler(CallbackQueryHandler(on_remove, pattern=r"^watch:remove:"))
     return app

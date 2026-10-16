@@ -14,7 +14,12 @@ PRICE_PATTERN = re.compile(r"^\d[\d.,]*$")
 
 
 def main_menu() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[InlineKeyboardButton("🔍 Buscar voos", callback_data="menu:search")]])
+    return InlineKeyboardMarkup(
+        [[
+            InlineKeyboardButton("🔍 Buscar voos", callback_data="menu:search"),
+            InlineKeyboardButton("🔔 Meus alertas", callback_data="menu:alerts"),
+        ]]
+    )
 
 
 def welcome_text(first_name: str) -> str:

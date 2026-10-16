@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
-from flight_tracker.domain import TripType, Watch
+from flight_tracker.domain import TripType, Watch, WatchStatus
 from flight_tracker.repositories.watch_repository import WatchRepository
 from flight_tracker.services.city_resolver import CityOption
 from flight_tracker.services.quota_service import QuotaService
@@ -43,3 +43,13 @@ class WatchService:
                 target_price=target_price,
             )
         )
+
+    def list_active(self, chat_id: int) -> list[Watch]:
+        return self._watches.find_active_by_chat(chat_id)
+
+    def remove(self, chat_id: int, watch_id: int) -> bool:
+        watch = self._watches.find(watch_id)
+        if watch is None or watch.chat_id != chat_id or watch.status != WatchStatus.ACTIVE:
+            return False
+        self._watches.update_status(watch_id, WatchStatus.REMOVED)
+        return True

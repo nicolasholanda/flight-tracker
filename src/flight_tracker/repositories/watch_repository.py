@@ -1,7 +1,9 @@
 import sqlite3
 from dataclasses import replace
+from datetime import date, datetime
+from decimal import Decimal
 
-from flight_tracker.domain import Watch, WatchStatus
+from flight_tracker.domain import TripType, Watch, WatchStatus
 
 
 class WatchRepository:
@@ -36,3 +38,35 @@ class WatchRepository:
             (chat_id, WatchStatus.ACTIVE),
         ).fetchone()
         return row["total"]
+
+    def find(self, watch_id: int) -> Watch | None:
+        row = self._conn.execute("SELECT * FROM watch WHERE id = ?", (watch_id,)).fetchone()
+        return _to_watch(row) if row else None
+
+    def find_active_by_chat(self, chat_id: int) -> list[Watch]:
+        rows = self._conn.execute(
+            "SELECT * FROM watch WHERE chat_id = ? AND status = ? ORDER BY departure_date, id",
+            (chat_id, WatchStatus.ACTIVE),
+        ).fetchall()
+        return [_to_watch(row) for row in rows]
+
+    def update_status(self, watch_id: int, status: WatchStatus) -> None:
+        self._conn.execute("UPDATE watch SET status = ? WHERE id = ?", (status, watch_id))
+
+
+def _to_watch(row: sqlite3.Row) -> Watch:
+    return Watch(
+        id=row["id"],
+        chat_id=row["chat_id"],
+        trip_type=TripType(row["trip_type"]),
+        origins=tuple(row["origins"].split(",")),
+        destinations=tuple(row["destinations"].split(",")),
+        origin_label=row["origin_label"],
+        destination_label=row["destination_label"],
+        departure_date=date.fromisoformat(row["departure_date"]),
+        return_date=date.fromisoformat(row["return_date"]) if row["return_date"] else None,
+        target_price=Decimal(row["target_price"]),
+        status=WatchStatus(row["status"]),
+        last_notified_price=Decimal(row["last_notified_price"]) if row["last_notified_price"] else None,
+        created_at=datetime.fromisoformat(row["created_at"]),
+    )
