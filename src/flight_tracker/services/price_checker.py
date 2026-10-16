@@ -128,6 +128,13 @@ class PriceChecker:
                 except Exception:
                     logger.exception("Failed to notify watch %s", watch.id)
                     continue
+                logger.info(
+                    "Alert sent to user %s for watch %s: %s (target %s)",
+                    watch.chat_id,
+                    watch.id,
+                    best.price,
+                    watch.target_price,
+                )
             if decision.changed:
                 self._watches.update_last_notified(watch.id, decision.last_notified_price)
 

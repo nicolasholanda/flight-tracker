@@ -1,3 +1,4 @@
+import logging
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
@@ -19,6 +20,8 @@ from flight_tracker.services.city_resolver import CityOption, CityResolver
 from flight_tracker.services.watch_service import WatchLimitReached
 
 TRIP, ORIGIN, DESTINATION, DEPARTURE, RETURN, TARGET_PRICE = range(6)
+
+logger = logging.getLogger(__name__)
 
 
 def _today(context: ContextTypes.DEFAULT_TYPE) -> date:
@@ -164,8 +167,19 @@ async def _run_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             draft["origin"].codes, draft["destination"].codes, draft["departure_date"], draft["return_date"]
         )
     except ProviderError:
+        logger.warning("Search by user %s failed on every route", update.effective_user.id)
         await update.message.reply_text("Não consegui buscar os preços agora. 😕 Tente novamente em alguns minutos.")
         return ConversationHandler.END
+    logger.info(
+        "User %s searched %s -> %s on %s%s: %d offers, cheapest %s",
+        update.effective_user.id,
+        ",".join(draft["origin"].codes),
+        ",".join(draft["destination"].codes),
+        draft["departure_date"],
+        f" returning {draft['return_date']}" if draft["return_date"] else "",
+        len(offers),
+        offers[0].price if offers else "-",
+    )
     context.user_data["last_search"] = draft
     text = format_results(
         draft["origin"].display, draft["destination"].display, draft["departure_date"], draft["return_date"], offers

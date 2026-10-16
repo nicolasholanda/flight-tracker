@@ -1,8 +1,11 @@
+import logging
 from collections.abc import Callable
 from datetime import datetime
 
 from flight_tracker.domain import AppUser, UserStatus
 from flight_tracker.repositories.user_repository import UserRepository
+
+logger = logging.getLogger(__name__)
 
 
 class AccessService:
@@ -27,7 +30,10 @@ class AccessService:
 
     def request_access(self, chat_id: int, name: str, username: str | None) -> AppUser | None:
         user = AppUser(chat_id, name, username, UserStatus.PENDING, self._now())
-        return user if self._users.insert_if_absent(user) else None
+        if not self._users.insert_if_absent(user):
+            return None
+        logger.info("Access requested by user %s (%s, @%s)", chat_id, name, username or "-")
+        return user
 
     def approve(self, chat_id: int) -> AppUser | None:
         return self._decide(chat_id, UserStatus.APPROVED, {UserStatus.PENDING, UserStatus.DENIED, UserStatus.REVOKED})
@@ -48,4 +54,5 @@ class AccessService:
         if user is None or user.status not in allowed_from:
             return None
         self._users.update_status(chat_id, status, self._now())
+        logger.info("User %s (%s) changed from %s to %s", chat_id, user.name, user.status, status)
         return self._users.find(chat_id)

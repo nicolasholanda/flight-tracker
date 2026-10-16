@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 from decimal import Decimal
 
@@ -5,6 +6,8 @@ from flight_tracker.domain import TripType, Watch, WatchStatus
 from flight_tracker.repositories.watch_repository import WatchRepository
 from flight_tracker.services.city_resolver import CityOption
 from flight_tracker.services.quota_service import QuotaService
+
+logger = logging.getLogger(__name__)
 
 
 class WatchLimitReached(Exception):
@@ -29,8 +32,9 @@ class WatchService:
         if target_price <= 0:
             raise ValueError("Target price must be positive")
         if not self._quota.can_create_watch(chat_id):
+            logger.info("User %s hit the active watch limit", chat_id)
             raise WatchLimitReached
-        return self._watches.insert(
+        watch = self._watches.insert(
             Watch(
                 chat_id=chat_id,
                 trip_type=trip_type,
@@ -43,6 +47,17 @@ class WatchService:
                 target_price=target_price,
             )
         )
+        logger.info(
+            "User %s created watch %s: %s -> %s on %s%s, target %s",
+            chat_id,
+            watch.id,
+            ",".join(watch.origins),
+            ",".join(watch.destinations),
+            departure_date,
+            f" returning {return_date}" if return_date else "",
+            target_price,
+        )
+        return watch
 
     def list_active(self, chat_id: int) -> list[Watch]:
         return self._watches.find_active_by_chat(chat_id)
@@ -56,4 +71,5 @@ class WatchService:
         if watch is None or watch.chat_id != chat_id or watch.status != WatchStatus.ACTIVE:
             return False
         self._watches.update_status(watch_id, WatchStatus.REMOVED)
+        logger.info("User %s removed watch %s", chat_id, watch_id)
         return True

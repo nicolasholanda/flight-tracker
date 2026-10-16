@@ -1,8 +1,11 @@
+import logging
 from collections.abc import Callable
 from datetime import datetime, timedelta
 
 from flight_tracker.repositories.search_request_repository import SearchRequestRepository
 from flight_tracker.repositories.watch_repository import WatchRepository
+
+logger = logging.getLogger(__name__)
 
 
 class QuotaService:
@@ -23,6 +26,7 @@ class QuotaService:
     def try_consume_search(self, chat_id: int) -> bool:
         now = self._now()
         if self._search_requests.count_since(chat_id, now - timedelta(hours=1)) >= self.max_searches_per_hour:
+            logger.info("User %s hit the hourly search limit", chat_id)
             return False
         self._search_requests.add(chat_id, now)
         return True
