@@ -47,6 +47,7 @@ class Airport:
     city: str
     country: str
     size: int
+    keywords: str = ""
 
 
 @dataclass(frozen=True)

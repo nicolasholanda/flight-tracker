@@ -4,6 +4,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import ApplicationHandlerStop, ContextTypes
 
+from flight_tracker.bot.formatting import main_menu, welcome_text
 from flight_tracker.services.access_service import AccessService
 
 
@@ -65,5 +66,5 @@ async def on_access_decision(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        f"Olá, {update.effective_user.first_name}! 👋 Bem-vindo ao Flight Tracker."
+        welcome_text(update.effective_user.first_name), parse_mode=ParseMode.HTML, reply_markup=main_menu()
     )

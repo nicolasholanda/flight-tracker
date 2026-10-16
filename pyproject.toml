@@ -12,6 +12,7 @@ dependencies = [
     "typing_extensions>=4.12",
     "python-telegram-bot[job-queue]==22.8",
     "pydantic-settings==2.16.0",
+    "tzdata>=2025.2",
 ]
 
 [project.optional-dependencies]
