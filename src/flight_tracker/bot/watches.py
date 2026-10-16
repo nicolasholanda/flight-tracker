@@ -2,7 +2,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
-from flight_tracker.bot.formatting import format_watch, main_menu
+from flight_tracker.bot.formatting import format_history, format_watch, main_menu
 from flight_tracker.domain import Watch
 from flight_tracker.services.watch_service import WatchService
 
@@ -26,7 +26,12 @@ async def list_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 
 def watch_keyboard(watch: Watch) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[InlineKeyboardButton("🛑 Remover", callback_data=f"watch:remove:{watch.id}")]])
+    return InlineKeyboardMarkup(
+        [[
+            InlineKeyboardButton("📈 Histórico", callback_data=f"watch:history:{watch.id}"),
+            InlineKeyboardButton("🛑 Remover", callback_data=f"watch:remove:{watch.id}"),
+        ]]
+    )
 
 
 async def on_remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -37,3 +42,14 @@ async def on_remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     await query.answer()
     await query.edit_message_text("🛑 Alerta removido.")
+
+
+async def on_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    watch = _watches(context).get_own(update.effective_user.id, int(query.data.split(":")[2]))
+    if watch is None:
+        await query.answer("Alerta não encontrado.")
+        return
+    await query.answer()
+    snapshots = context.bot_data["snapshots"].find_recent(watch.routes())
+    await update.effective_chat.send_message(format_history(watch, snapshots), parse_mode=ParseMode.HTML)

@@ -9,7 +9,7 @@ from telegram.warnings import PTBUserWarning
 from flight_tracker.bot.access import guard, on_access_decision, start
 from flight_tracker.bot.admin import on_revoke, revoke_command, users_command
 from flight_tracker.bot.search import alert_conversation, search_conversation
-from flight_tracker.bot.watches import list_alerts, on_remove
+from flight_tracker.bot.watches import list_alerts, on_history, on_remove
 from flight_tracker.config import Settings
 from flight_tracker.db import connect, migrate
 from flight_tracker.notifiers.telegram import TelegramNotifier
@@ -48,10 +48,11 @@ def build_application(settings: Settings) -> Application:
     def today() -> date:
         return datetime.now(zone).date()
 
+    snapshots = SnapshotRepository(conn)
     app = ApplicationBuilder().token(settings.telegram_token).build()
     price_checker = PriceChecker(
         watch_repository,
-        SnapshotRepository(conn),
+        snapshots,
         CheckRunRepository(conn),
         provider,
         TelegramNotifier(app.bot),
@@ -68,6 +69,7 @@ def build_application(settings: Settings) -> Application:
         quota=quota,
         watches=WatchService(watch_repository, quota),
         price_checker=price_checker,
+        snapshots=snapshots,
     )
 
     app.add_handler(TypeHandler(Update, guard), group=-1)
@@ -81,6 +83,7 @@ def build_application(settings: Settings) -> Application:
     app.add_handler(CommandHandler("alertas", list_alerts))
     app.add_handler(CallbackQueryHandler(list_alerts, pattern=r"^menu:alerts$"))
     app.add_handler(CallbackQueryHandler(on_remove, pattern=r"^watch:remove:"))
+    app.add_handler(CallbackQueryHandler(on_history, pattern=r"^watch:history:"))
 
     app.job_queue.run_repeating(
         check_prices,

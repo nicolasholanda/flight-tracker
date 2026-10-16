@@ -1,11 +1,11 @@
 import re
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from html import escape
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from flight_tracker.domain import FlightOffer, Watch
+from flight_tracker.domain import FlightOffer, PriceSnapshot, Watch
 
 WEEKDAYS = ["seg.", "ter.", "qua.", "qui.", "sex.", "sáb.", "dom."]
 DATE_PATTERN = re.compile(r"^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2}|\d{4}))?$")
@@ -90,6 +90,28 @@ def format_watch(watch: Watch) -> str:
 
 def format_alert(watch: Watch, offer: FlightOffer) -> str:
     return f"🔔 <b>Preço no alvo!</b>\n\n{format_watch(watch)}\n\n{format_offer(offer)}"
+
+
+def format_history(watch: Watch, snapshots: list[PriceSnapshot], limit: int = 10) -> str:
+    header = f"📈 <b>Histórico de preços</b>\n\n{format_watch(watch)}"
+    if not snapshots:
+        return f"{header}\n\nAinda não há preços registrados. A próxima verificação acontece em até 1 hora. ⏳"
+    buckets: dict[datetime, PriceSnapshot] = {}
+    for snapshot in snapshots:
+        key = snapshot.checked_at.replace(minute=0, second=0, microsecond=0)
+        if key not in buckets or snapshot.min_price < buckets[key].min_price:
+            buckets[key] = snapshot
+    recent = sorted(buckets.items(), reverse=True)[:limit]
+    lowest = min(snapshots, key=lambda snapshot: snapshot.min_price)
+    lines = [
+        f"{'✅' if snapshot.min_price <= watch.target_price else '▫️'} {key:%d/%m %Hh} · "
+        f"<b>{format_price(snapshot.min_price)}</b> · {escape(snapshot.airline)} ({snapshot.route.destination})"
+        for key, snapshot in recent
+    ]
+    return (
+        f"{header}\n\n" + "\n".join(lines)
+        + f"\n\n🏆 Menor preço visto: <b>{format_price(lowest.min_price)}</b> em {lowest.checked_at:%d/%m %Hh}"
+    )
 
 
 def parse_price(text: str) -> Decimal | None:

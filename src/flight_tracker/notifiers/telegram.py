@@ -13,7 +13,10 @@ class TelegramNotifier:
         keyboard = InlineKeyboardMarkup(
             [
                 [InlineKeyboardButton("🛒 Ver no Google Flights", url=offer.booking_url)],
-                [InlineKeyboardButton("🛑 Parar alerta", callback_data=f"watch:remove:{watch.id}")],
+                [
+                    InlineKeyboardButton("📈 Histórico", callback_data=f"watch:history:{watch.id}"),
+                    InlineKeyboardButton("🛑 Parar alerta", callback_data=f"watch:remove:{watch.id}"),
+                ],
             ]
         )
         await self._bot.send_message(

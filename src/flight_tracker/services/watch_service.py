@@ -47,6 +47,10 @@ class WatchService:
     def list_active(self, chat_id: int) -> list[Watch]:
         return self._watches.find_active_by_chat(chat_id)
 
+    def get_own(self, chat_id: int, watch_id: int) -> Watch | None:
+        watch = self._watches.find(watch_id)
+        return watch if watch is not None and watch.chat_id == chat_id else None
+
     def remove(self, chat_id: int, watch_id: int) -> bool:
         watch = self._watches.find(watch_id)
         if watch is None or watch.chat_id != chat_id or watch.status != WatchStatus.ACTIVE:
