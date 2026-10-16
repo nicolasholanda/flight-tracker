@@ -1,0 +1,14 @@
+services:
+  bot:
+    build: .
+    image: flight-tracker
+    env_file: .env
+    environment:
+      DATABASE_PATH: /data/flight-tracker.db
+      TZ: ${TIMEZONE:-America/Fortaleza}
+    volumes:
+      - flight-data:/data
+    restart: unless-stopped
+
+volumes:
+  flight-data:
