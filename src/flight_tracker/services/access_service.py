@@ -35,6 +35,12 @@ class AccessService:
     def deny(self, chat_id: int) -> AppUser | None:
         return self._decide(chat_id, UserStatus.DENIED, {UserStatus.PENDING})
 
+    def revoke(self, chat_id: int) -> AppUser | None:
+        return self._decide(chat_id, UserStatus.REVOKED, {UserStatus.APPROVED})
+
+    def list_users(self) -> list[AppUser]:
+        return [user for user in self._users.list_all() if not self.is_owner(user.chat_id)]
+
     def _decide(self, chat_id: int, status: UserStatus, allowed_from: set[UserStatus]) -> AppUser | None:
         if self.is_owner(chat_id):
             return None

@@ -12,6 +12,10 @@ class UserRepository:
         row = self._conn.execute("SELECT * FROM app_user WHERE chat_id = ?", (chat_id,)).fetchone()
         return _to_user(row) if row else None
 
+    def list_all(self) -> list[AppUser]:
+        rows = self._conn.execute("SELECT * FROM app_user ORDER BY created_at").fetchall()
+        return [_to_user(row) for row in rows]
+
     def insert_if_absent(self, user: AppUser) -> bool:
         cursor = self._conn.execute(
             "INSERT OR IGNORE INTO app_user (chat_id, name, username, status, created_at, decided_at) "

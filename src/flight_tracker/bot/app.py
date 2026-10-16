@@ -2,6 +2,7 @@ from telegram import Update
 from telegram.ext import Application, ApplicationBuilder, CallbackQueryHandler, CommandHandler, TypeHandler
 
 from flight_tracker.bot.access import guard, on_access_decision, start
+from flight_tracker.bot.admin import on_revoke, revoke_command, users_command
 from flight_tracker.config import Settings
 from flight_tracker.db import connect, migrate
 from flight_tracker.repositories.user_repository import UserRepository
@@ -25,4 +26,7 @@ def build_application(settings: Settings) -> Application:
     app.add_handler(TypeHandler(Update, guard), group=-1)
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(on_access_decision, pattern=r"^access:"))
+    app.add_handler(CommandHandler("users", users_command))
+    app.add_handler(CommandHandler("revoke", revoke_command))
+    app.add_handler(CallbackQueryHandler(on_revoke, pattern=r"^admin:revoke:"))
     return app
