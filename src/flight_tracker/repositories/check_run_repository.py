@@ -1,7 +1,7 @@
 import sqlite3
 from dataclasses import replace
 
-from flight_tracker.domain import CheckRun
+from flight_tracker.domain import CheckRun, CheckRunStatus
 
 
 class CheckRunRepository:
@@ -14,6 +14,13 @@ class CheckRunRepository:
             (run.started_at.isoformat(), run.status),
         )
         return replace(run, id=cursor.lastrowid)
+
+    def recent_statuses(self, limit: int) -> list[CheckRunStatus]:
+        rows = self._conn.execute(
+            "SELECT status FROM check_run WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [CheckRunStatus(row["status"]) for row in rows]
 
     def finish(self, run: CheckRun) -> None:
         self._conn.execute(

@@ -55,10 +55,11 @@ def build_application(settings: Settings) -> Application:
         snapshots,
         CheckRunRepository(conn),
         provider,
-        TelegramNotifier(app.bot),
+        TelegramNotifier(app.bot, settings.owner_chat_id),
         settings.max_routes_per_run,
         settings.request_delay_seconds,
         today,
+        settings.failure_alert_threshold,
     )
     app.bot_data.update(
         settings=settings,

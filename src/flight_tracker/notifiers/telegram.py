@@ -6,8 +6,12 @@ from flight_tracker.domain import FlightOffer, Watch
 
 
 class TelegramNotifier:
-    def __init__(self, bot: Bot):
+    def __init__(self, bot: Bot, owner_chat_id: int):
         self._bot = bot
+        self._owner_chat_id = owner_chat_id
+
+    async def send_owner_message(self, text: str) -> None:
+        await self._bot.send_message(self._owner_chat_id, text)
 
     async def send_price_alert(self, watch: Watch, offer: FlightOffer) -> None:
         keyboard = InlineKeyboardMarkup(

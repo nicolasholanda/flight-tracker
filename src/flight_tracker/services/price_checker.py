@@ -25,8 +25,10 @@ class PriceChecker:
         max_routes_per_run: int,
         delay_seconds: float,
         today: Callable[[], date],
+        failure_alert_threshold: int,
         now: Callable[[], datetime] = datetime.now,
     ):
+        self._failure_alert_threshold = failure_alert_threshold
         self._watches = watches
         self._snapshots = snapshots
         self._check_runs = check_runs
@@ -57,7 +59,26 @@ class PriceChecker:
         run.finished_at = self._now()
         self._check_runs.finish(run)
         logger.info("Check run %s: %s (%d routes, %d failed)", run.id, run.status, run.routes_total, run.routes_failed)
+        await self._report_health(run)
         return run
+
+    async def _report_health(self, run: CheckRun) -> None:
+        threshold = self._failure_alert_threshold
+        statuses = self._check_runs.recent_statuses(threshold + 1)
+        streak = [CheckRunStatus.FAILED] * threshold
+        failing_now = statuses[:threshold] == streak
+        failing_before = statuses[1 : threshold + 1] == streak
+        try:
+            if failing_now and not failing_before:
+                await self._notifier.send_owner_message(
+                    f"⚠️ As últimas {threshold} verificações de preço falharam. "
+                    "O Google Flights pode ter mudado ou bloqueado as buscas.\n"
+                    f"Último erro: {run.error or 'falha em todas as rotas'}"
+                )
+            elif failing_before and not failing_now:
+                await self._notifier.send_owner_message("✅ As verificações de preço voltaram a funcionar.")
+        except Exception:
+            logger.exception("Failed to notify owner about check health")
 
     def _select_routes(self, watches: list[Watch]) -> list[Route]:
         unique = list(dict.fromkeys(route for watch in watches for route in watch.routes()))
@@ -74,8 +95,8 @@ class PriceChecker:
                 await asyncio.sleep(self._delay_seconds)
             try:
                 found = await asyncio.to_thread(self._provider.search, route)
-            except ProviderError:
-                logger.exception("Provider failed for %s", route)
+            except ProviderError as error:
+                logger.warning("Provider failed for %s: %s", route, error)
                 failed += 1
                 continue
             offers[route] = found
